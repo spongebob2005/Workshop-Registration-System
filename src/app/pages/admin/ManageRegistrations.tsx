@@ -66,6 +66,30 @@ export const ManageRegistrations = () => {
 
   const totalRevenue = filteredBookings.reduce((sum, b) => sum + (b.price || 0), 0);
 
+  const exportToCSV = () => {
+    if (filteredBookings.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+    const headers = ["Booking ID", "Student Name", "Email", "Workshop", "Date", "Amount", "Payment Method", "Booking Date"];
+    const rows = filteredBookings.map(b => [
+      b.id, b.userName || "", b.userEmail || "", b.workshopTitle || "",
+      b.date || "", b.price ?? "", b.paymentMethod || "N/A",
+      b.bookingDate ? new Date(b.bookingDate).toLocaleDateString() : ""
+    ]);
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, "\"\"")}"` ).join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `registrations_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredBookings.length} registrations`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -286,7 +310,7 @@ export const ManageRegistrations = () => {
               <h3 className="font-semibold text-gray-900 mb-1">Export Data</h3>
               <p className="text-sm text-gray-600">Download registration data for reporting and analysis</p>
             </div>
-            <Button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0">
+            <Button onClick={exportToCSV} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white border-0">
               Export to CSV
             </Button>
           </div>
