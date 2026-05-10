@@ -13,6 +13,13 @@ import { motion } from 'motion/react';
 import { api } from '../api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+}
+
 const CATEGORY_GRADIENTS: Record<string, string> = {
   'Web Development': 'from-blue-600 to-indigo-700',
   'Design': 'from-pink-600 to-rose-700',
@@ -44,12 +51,12 @@ export const WorkshopDetails = () => {
       const fetchUsers = async () => {
         setLoadingUsers(true);
         try {
-          const allUsers = await api.get('/users');
+          const allUsers: User[] = await api.get('/users');
           const workshopBookings = getBookingsByWorkshop(workshop.id);
           const activeBookings = workshopBookings.filter(b => b.status === 'confirmed');
           
           const usersInWorkshop = activeBookings.map(booking => {
-            const u = allUsers.find((u: any) => u.id === booking.userId);
+            const u = allUsers.find(u => u.id === booking.userId);
             return u ? { id: u.id, name: u.name } : { id: booking.userId, name: 'Anonymous User' };
           });
           

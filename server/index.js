@@ -2,21 +2,50 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { MongoClient } from "mongodb";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import Joi from "joi";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB ?? "workshophub";
 const PORT = Number(process.env.PORT || 4000);
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
 if (!MONGODB_URI) {
   console.error("Missing MONGODB_URI in environment. Please add it to .env.");
   process.exit(1);
 }
 
+if (!JWT_SECRET || JWT_SECRET === "your-secret-key-change-in-production") {
+  console.error("Missing or default JWT_SECRET in environment. Please set a secure JWT_SECRET in .env.");
+  process.exit(1);
+}
+
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later."
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 login attempts per windowMs
+  message: "Too many login attempts, please try again later."
+});
+
+app.use(limiter);
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true
+}));
+app.use(express.json({ limit: '10kb' }));
 
 let db;
 let client;
@@ -72,31 +101,115 @@ const appLogger = (req, res, next) => {
   next();
 };
 
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Authorization middleware for admin
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+// Input validation schemas
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+  role: Joi.string().valid('student', 'admin').required()
+});
+
+const registerSchema = Joi.object({
+  id: Joi.string().required(),
+  name: Joi.string().required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+  role: Joi.string().valid('student', 'admin').default('student')
+});
+
+const emailParamSchema = Joi.object({
+  email: Joi.string().email().required()
+});
+
 app.use(appLogger);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.get("/api/users", async (_req, res) => {
+app.get("/api/users", authenticateToken, requireAdmin, async (_req, res) => {
   try {
     const users = await (await getCollection("users")).find({}).toArray();
-    res.json(users);
+    const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+    res.json(usersWithoutPasswords);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
   }
 });
 
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", authLimiter, async (req, res) => {
   try {
-    const { email, password, role } = req.body;
-    const user = await (await getCollection("users")).findOne({ email, password, role });
+    const { error, value } = loginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, error: error.details[0].message });
+    }
+
+    const { email, password, role } = value;
+    const user = await (await getCollection("users")).findOne({ email, role });
     if (!user) {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    await logEvent({ type: "login", userId: user.id, email: user.email, role: user.role || "student" });
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ success: false, error: "Invalid credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    await logEvent({ type: "login", userId: user.id, email: user.email, role: user.role });
+
+    const { password: _password, ...userWithoutPassword } = user;
+    res.json({ success: true, user: userWithoutPassword, token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post("/api/users", async (req, res) => {
+  try {
+    const { error, value } = registerSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, error: error.details[0].message });
+    }
+
+    const user = { ...value };
+    const hashedPassword = await bcrypt.hash(user.password, 10);
+    user.password = hashedPassword;
+
+    await upsertDocument("users", { email: user.email }, user);
+    await logEvent({ type: "register", userId: user.id, email: user.email, role: user.role });
 
     const { password: _password, ...userWithoutPassword } = user;
     res.json({ success: true, user: userWithoutPassword });
@@ -106,20 +219,13 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-app.post("/api/users", async (req, res) => {
+app.put("/api/users/:email", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const user = req.body;
-    await upsertDocument("users", { email: user.email }, user);
-    await logEvent({ type: "register", userId: user.id, email: user.email, role: user.role || "student" });
-    res.json({ success: true, user });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: String(error) });
-  }
-});
+    const { error } = emailParamSchema.validate({ email: req.params.email });
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
 
-app.put("/api/users/:email", async (req, res) => {
-  try {
     const email = req.params.email;
     const updates = req.body;
     const users = await getCollection("users");
@@ -128,16 +234,25 @@ app.put("/api/users/:email", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
     const updatedUser = { ...existingUser, ...updates };
+    if (updates.password) {
+      updatedUser.password = await bcrypt.hash(updates.password, 10);
+    }
     await users.updateOne({ email }, { $set: updatedUser });
-    res.json({ success: true, user: updatedUser });
+    const { password: _password, ...userWithoutPassword } = updatedUser;
+    res.json({ success: true, user: userWithoutPassword });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
   }
 });
 
-app.delete("/api/users/:email", async (req, res) => {
+app.delete("/api/users/:email", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const { error } = emailParamSchema.validate({ email: req.params.email });
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
     await (await getCollection("users")).deleteOne({ email: req.params.email });
     res.json({ success: true });
   } catch (error) {
@@ -156,7 +271,7 @@ app.get("/api/workshops", async (_req, res) => {
   }
 });
 
-app.post("/api/workshops", async (req, res) => {
+app.post("/api/workshops", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const workshop = req.body;
     await upsertDocument("workshops", { id: workshop.id }, workshop);
@@ -167,7 +282,7 @@ app.post("/api/workshops", async (req, res) => {
   }
 });
 
-app.put("/api/workshops/:id", async (req, res) => {
+app.put("/api/workshops/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
     const updates = req.body;
@@ -185,7 +300,7 @@ app.put("/api/workshops/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/workshops/:id", async (req, res) => {
+app.delete("/api/workshops/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     await (await getCollection("workshops")).deleteOne({ id: req.params.id });
     res.json({ success: true });
@@ -195,7 +310,7 @@ app.delete("/api/workshops/:id", async (req, res) => {
   }
 });
 
-app.post("/api/workshops/init", async (req, res) => {
+app.post("/api/workshops/init", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const workshops = req.body.workshops ?? [];
     const existing = await (await getCollection("workshops")).find({}).limit(1).toArray();
@@ -247,7 +362,7 @@ app.post("/api/bookings", async (req, res) => {
   }
 });
 
-app.delete("/api/bookings/:id", async (req, res) => {
+app.delete("/api/bookings/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     await (await getCollection("bookings")).deleteOne({ id: req.params.id });
     res.json({ success: true });
@@ -279,7 +394,7 @@ app.post("/api/payments", async (req, res) => {
   }
 });
 
-app.get("/api/admin/stats", async (_req, res) => {
+app.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req, res) => {
   try {
     const users = await (await getCollection("users")).find({}).toArray();
     const workshops = await (await getCollection("workshops")).find({}).toArray();

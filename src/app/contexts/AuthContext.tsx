@@ -10,6 +10,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   login: (email: string, password: string, role?: 'admin' | 'student') => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -21,47 +22,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
+    const storedToken = localStorage.getItem('authToken');
+    if (storedUser && storedToken) {
       setUser(JSON.parse(storedUser));
+      setToken(storedToken);
     }
-    
-    // Initialize default admin user if not exists
-    const initializeAdmin = async () => {
-      try {
-        const users = await api.get('/users');
-        const adminExists = users.some((u: any) => u.role === 'admin');
-        
-        if (!adminExists) {
-          const defaultAdmin = {
-            id: 'admin-1',
-            name: 'Admin User',
-            email: 'admin@workshophub.com',
-            password: 'admin123',
-            role: 'admin',
-            createdAt: new Date().toISOString()
-          };
-          await api.post('/users', defaultAdmin);
-          console.log('✅ Default admin user created');
-        }
-      } catch (error) {
-        console.error('Error initializing admin user:', error);
-      }
-    };
-    
-    initializeAdmin();
   }, []);
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {
-      const users: any[] = await api.get('/users');
-      
-      if (users.find((u: any) => u.email === email)) {
-        return false;
-      }
-
       const newUser = {
         id: Date.now().toString(),
         name,
@@ -70,13 +43,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'student' as const,
       };
 
-      await api.post('/users', newUser);
+      const response: any = await api.post('/users', newUser);
 
-      const userWithoutPassword = { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role };
-      setUser(userWithoutPassword);
-      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-
-      return true;
+      if (response?.success && response.user) {
+        setUser(response.user);
+        localStorage.setItem('currentUser', JSON.stringify(response.user));
+        return true;
+      }
+      return false;
     } catch (e) {
       console.error(e);
       return false;
@@ -87,15 +61,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response: any = await api.post('/login', { email, password, role });
       
-      if (response?.success && response.user) {
-        const userWithoutPassword = { 
-          id: response.user.id, 
-          name: response.user.name, 
-          email: response.user.email,
-          role: response.user.role || 'student'
-        };
-        setUser(userWithoutPassword);
-        localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      if (response?.success && response.user && response.token) {
+        setUser(response.user);
+        setToken(response.token);
+        localStorage.setItem('currentUser', JSON.stringify(response.user));
+        localStorage.setItem('authToken', response.token);
         return true;
       }
       return false;
@@ -107,13 +77,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('authToken');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        token,
         login,
         register,
         logout,

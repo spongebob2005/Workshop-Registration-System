@@ -2,8 +2,12 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
-const headers = {
-  "Content-Type": "application/json",
+const getHeaders = () => {
+  const token = localStorage.getItem('authToken');
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+  };
 };
 
 const parseResponse = async (res: Response): Promise<any> => {
@@ -16,7 +20,7 @@ const parseResponse = async (res: Response): Promise<any> => {
 
 const fetchJson = async (endpoint: string, options?: RequestInit): Promise<any> => {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers,
+    headers: getHeaders(),
     ...options,
   });
   return parseResponse(res);
