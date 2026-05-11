@@ -303,7 +303,18 @@ export const WorkshopDetails = () => {
                       <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Assessments</h3>
                       <div className="grid gap-3">
                         {workshop.learningContent?.mcqs?.map((mcq, i) => (
-                          <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                          <div
+                            key={i}
+                            onClick={isUserRegistered ? () => navigate(`/workshop/${workshop.id}/quiz/${i}`) : undefined}
+                            className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}
+                            role={isUserRegistered ? 'button' : undefined}
+                            tabIndex={isUserRegistered ? 0 : -1}
+                            onKeyDown={(event) => {
+                              if (isUserRegistered && (event.key === 'Enter' || event.key === ' ')) {
+                                navigate(`/workshop/${workshop.id}/quiz/${i}`);
+                              }
+                            }}
+                          >
                             <div className="flex items-center gap-3">
                               <div className="p-2 bg-purple-50 text-purple-500 rounded-lg">
                                 <HelpCircle className="size-4" />

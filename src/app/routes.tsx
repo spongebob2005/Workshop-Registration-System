@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { WorkshopDetails } from './pages/WorkshopDetails';
+import { QuizPage } from './pages/QuizPage';
 import { Payment } from './pages/Payment';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { BookingHistory } from './pages/BookingHistory';
@@ -55,6 +56,14 @@ export const router = createBrowserRouter([
     element: (
       <Layout>
         <WorkshopDetails />
+      </Layout>
+    ),
+  },
+  {
+    path: '/workshop/:workshopId/quiz/:quizIndex',
+    element: (
+      <Layout>
+        <QuizPage />
       </Layout>
     ),
   },
