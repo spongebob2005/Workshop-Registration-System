@@ -494,18 +494,29 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 app.listen(PORT, async () => {
-  await connectDb();
-  console.log(`MongoDB API server is running on http://localhost:${PORT}`);
+  try {
+    await connectDb();
+    console.log(`MongoDB API server is running on http://localhost:${PORT}`);
+  } catch (error) {
+    console.error('Failed to connect to database:', error);
+    process.exit(1);
+  }
 }).on('error', async (err) => {
   if (err.code === 'EADDRINUSE') {
     console.log(`Port ${PORT} is in use, finding available port...`);
     const availablePort = await findAvailablePort(PORT + 1);
     console.log(`Using port ${availablePort}`);
     app.listen(availablePort, async () => {
-      await connectDb();
-      console.log(`MongoDB API server is running on http://localhost:${availablePort}`);
+      try {
+        await connectDb();
+        console.log(`MongoDB API server is running on http://localhost:${availablePort}`);
+      } catch (error) {
+        console.error('Failed to connect to database:', error);
+        process.exit(1);
+      }
     });
   } else {
     console.error('Server error:', err);
+    process.exit(1);
   }
 });
