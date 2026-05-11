@@ -111,7 +111,7 @@ export const Payment = () => {
     const n = cardNumber.replace(/\s/g, '');
     if (n.startsWith('4')) return 'VISA';
     if (n.startsWith('5')) return 'MC';
-    if (n.startsWith('3')) return 'AMEX';
+    if (n.startsWith('3')) return 'CAT';
     return null;
   };
 

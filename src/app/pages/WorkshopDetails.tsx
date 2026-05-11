@@ -93,6 +93,10 @@ export const WorkshopDetails = () => {
     navigate(`/payment/${workshop.id}`);
   };
 
+  const openExternalLink = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Hero Banner */}
@@ -238,7 +242,18 @@ export const WorkshopDetails = () => {
                       <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">PDF Resources</h3>
                       <div className="grid gap-3">
                         {workshop.learningContent?.pdfs?.map((pdf, i) => (
-                          <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                          <div
+                            key={i}
+                            onClick={isUserRegistered ? () => openExternalLink(pdf.url) : undefined}
+                            className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}
+                            role={isUserRegistered ? 'button' : undefined}
+                            tabIndex={isUserRegistered ? 0 : -1}
+                            onKeyDown={(event) => {
+                              if (isUserRegistered && (event.key === 'Enter' || event.key === ' ')) {
+                                openExternalLink(pdf.url);
+                              }
+                            }}
+                          >
                             <div className="flex items-center gap-3">
                               <div className="p-2 bg-red-50 text-red-500 rounded-lg">
                                 <FileText className="size-4" />
@@ -256,7 +271,18 @@ export const WorkshopDetails = () => {
                       <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Video Lectures</h3>
                       <div className="grid gap-3">
                         {workshop.learningContent?.videos?.map((video, i) => (
-                          <div key={i} className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                          <div
+                            key={i}
+                            onClick={isUserRegistered ? () => openExternalLink(video.url) : undefined}
+                            className={`flex items-center justify-between p-3 rounded-xl border ${isUserRegistered ? 'bg-white hover:bg-gray-50 border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-60'}`}
+                            role={isUserRegistered ? 'button' : undefined}
+                            tabIndex={isUserRegistered ? 0 : -1}
+                            onKeyDown={(event) => {
+                              if (isUserRegistered && (event.key === 'Enter' || event.key === ' ')) {
+                                openExternalLink(video.url);
+                              }
+                            }}
+                          >
                             <div className="flex items-center gap-3">
                               <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
                                 <Video className="size-4" />
