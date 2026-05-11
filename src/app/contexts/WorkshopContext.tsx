@@ -371,12 +371,6 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updatedWorkshop = { ...workshop, availableSeats: workshop.availableSeats - seatsToDeduct };
     const updatedWorkshops = workshops.map(w => w.id === workshopId ? updatedWorkshop : w);
     setWorkshops(updatedWorkshops);
-
-    try {
-      await api.post('/workshops', updatedWorkshop);
-    } catch (e) {
-      console.error('Failed to update seat availability on server', e);
-    }
   };
 
   return (

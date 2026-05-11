@@ -193,12 +193,23 @@ app.post("/api/login", authLimiter, async (req, res) => {
     }
 
     const { email, password, role } = value;
-    const user = await (await getCollection("users")).findOne({ email, role });
+    const users = await getCollection("users");
+    let user = await users.findOne({ email, role });
+    if (!user) {
+      user = await users.findOne({ email });
+    }
     if (!user) {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    let isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword && user.password === password) {
+      // Legacy plaintext password support: migrate to a hashed password on first successful login.
+      isValidPassword = true;
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await users.updateOne({ email: user.email }, { $set: { password: hashedPassword } });
+    }
+
     if (!isValidPassword) {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
@@ -226,11 +237,15 @@ app.post("/api/users", async (req, res) => {
       return res.status(400).json({ success: false, error: error.details[0].message });
     }
 
+    const users = await getCollection("users");
     const user = { ...value };
-    const hashedPassword = await bcrypt.hash(user.password, 10);
-    user.password = hashedPassword;
+    const existingUser = await users.findOne({ email: user.email });
+    if (existingUser) {
+      return res.status(409).json({ success: false, error: "Email already exists" });
+    }
+    user.password = await bcrypt.hash(user.password, 10);
 
-    await upsertDocument("users", { email: user.email }, user);
+    await users.insertOne(user);
     await logEvent({ type: "register", userId: user.id, email: user.email, role: user.role });
 
     const { password: _password, ...userWithoutPassword } = user;
