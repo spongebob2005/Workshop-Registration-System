@@ -1,45 +1,6 @@
 /// <reference types="vite/client" />
 
-const getApiBaseUrl = async (): Promise<string> => {
-  const defaultUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
-  
-  // Try the default URL first
-  try {
-    const response = await fetch(`${defaultUrl.replace('/api', '')}/health`, { method: 'GET' });
-    if (response.ok) {
-      return defaultUrl;
-    }
-  } catch (error) {
-    console.log('Default API URL not available, trying alternatives...');
-  }
-
-  // Try ports starting from 4000 upwards
-  for (let port = 4000; port <= 4010; port++) {
-    try {
-      const testUrl = `http://localhost:${port}/api`;
-      const response = await fetch(`${testUrl.replace('/api', '')}/health`, { method: 'GET' });
-      if (response.ok) {
-        console.log(`Found API server on port ${port}`);
-        return testUrl;
-      }
-    } catch (error) {
-      // Continue to next port
-    }
-  }
-
-  // Fallback to default
-  console.warn('Could not find API server, using default URL');
-  return defaultUrl;
-};
-
-let BASE_URL: string;
-
-const initializeBaseUrl = async () => {
-  if (!BASE_URL) {
-    BASE_URL = await getApiBaseUrl();
-  }
-  return BASE_URL;
-};
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
 const getHeaders = () => {
   const token = localStorage.getItem('authToken');
@@ -58,8 +19,7 @@ const parseResponse = async (res: Response): Promise<any> => {
 };
 
 const fetchJson = async (endpoint: string, options?: RequestInit): Promise<any> => {
-  const baseUrl = await initializeBaseUrl();
-  const res = await fetch(`${baseUrl}${endpoint}`, {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
     headers: getHeaders(),
     ...options,
   });

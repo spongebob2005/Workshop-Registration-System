@@ -499,7 +499,7 @@ app.listen(PORT, async () => {
     console.log(`MongoDB API server is running on http://localhost:${PORT}`);
   } catch (error) {
     console.error('Failed to connect to database:', error);
-    process.exit(1);
+    console.log('Server will continue running without database connection');
   }
 }).on('error', async (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -512,11 +512,10 @@ app.listen(PORT, async () => {
         console.log(`MongoDB API server is running on http://localhost:${availablePort}`);
       } catch (error) {
         console.error('Failed to connect to database:', error);
-        process.exit(1);
+        console.log('Server will continue running without database connection');
       }
     });
   } else {
     console.error('Server error:', err);
-    process.exit(1);
   }
 });
