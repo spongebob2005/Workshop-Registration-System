@@ -6,6 +6,9 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Joi from "joi";
 import rateLimit from "express-rate-limit";
+import { createServer } from "net";
+
+dotenv.config();
 
 dotenv.config();
 
@@ -16,6 +19,20 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-producti
 const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@workshophub.com';
 const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+
+const findAvailablePort = (startPort) => {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.listen(startPort, () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      // Port is in use, try next
+      findAvailablePort(startPort + 1).then(resolve).catch(reject);
+    });
+  });
+};
 
 if (!MONGODB_URI) {
   console.error("Missing MONGODB_URI in environment. Please add it to .env.");
@@ -479,4 +496,16 @@ process.on('unhandledRejection', (reason, promise) => {
 app.listen(PORT, async () => {
   await connectDb();
   console.log(`MongoDB API server is running on http://localhost:${PORT}`);
+}).on('error', async (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${PORT} is in use, finding available port...`);
+    const availablePort = await findAvailablePort(PORT + 1);
+    console.log(`Using port ${availablePort}`);
+    app.listen(availablePort, async () => {
+      await connectDb();
+      console.log(`MongoDB API server is running on http://localhost:${availablePort}`);
+    });
+  } else {
+    console.error('Server error:', err);
+  }
 });
