@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkshops } from '../contexts/WorkshopContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +9,6 @@ import {
 } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { motion } from 'motion/react';
-import { api } from '../api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
 interface User {
@@ -42,35 +40,12 @@ export const WorkshopDetails = () => {
   const { getWorkshopById, getBookingsByWorkshop, loading: workshopsLoading } = useWorkshops();
   const { isAuthenticated, user } = useAuth();
   const workshop = getWorkshopById(id!);
-  
-  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  useEffect(() => {
-    if (workshop) {
-      const fetchUsers = async () => {
-        setLoadingUsers(true);
-        try {
-          const allUsers: User[] = await api.get('/users');
-          const workshopBookings = getBookingsByWorkshop(workshop.id);
-          const activeBookings = workshopBookings.filter(b => b.status === 'confirmed');
-          
-          const usersInWorkshop = activeBookings.map(booking => {
-            const u = allUsers.find(u => u.id === booking.userId);
-            return u ? { id: u.id, name: u.name } : { id: booking.userId, name: 'Anonymous User' };
-          });
-          
-          setRegisteredUsers(usersInWorkshop);
-        } catch (e) {
-          console.error("Failed to fetch users", e);
-        } finally {
-          setLoadingUsers(false);
-        }
-      };
-      
-      fetchUsers();
-    }
-  }, [workshop, getBookingsByWorkshop]);
+  const registeredUsers = workshop
+    ? getBookingsByWorkshop(workshop.id)
+        .filter((booking) => booking.status === 'confirmed')
+        .map((booking) => ({ id: booking.userId, name: booking.userName || 'Anonymous User' }))
+    : [];
 
   if (workshopsLoading) {
     return (
@@ -328,11 +303,7 @@ export const WorkshopDetails = () => {
                     Registered Attendees ({registeredUsers.length})
                   </h2>
                   
-                  {loadingUsers ? (
-                    <div className="flex justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    </div>
-                  ) : registeredUsers.length > 0 ? (
+                  {registeredUsers.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {registeredUsers.map((u, i) => (
                         <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">

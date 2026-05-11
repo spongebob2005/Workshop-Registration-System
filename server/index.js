@@ -13,6 +13,8 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB ?? "workshophub";
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@workshophub.com';
+const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
 if (!MONGODB_URI) {
@@ -64,7 +66,27 @@ const connectDb = async () => {
     db.collection("events").createIndex({ timestamp: -1 }),
   ]);
 
+  await ensureAdminUser();
+
   return db;
+};
+
+const ensureAdminUser = async () => {
+  const users = await getCollection('users');
+  const existingAdmin = await users.findOne({ role: 'admin' });
+  if (existingAdmin) return;
+
+  const adminUser = {
+    id: `admin-${Date.now()}`,
+    name: 'Admin',
+    email: DEFAULT_ADMIN_EMAIL,
+    password: await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10),
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  };
+
+  await users.insertOne(adminUser);
+  console.log(`Created default admin user: ${DEFAULT_ADMIN_EMAIL}`);
 };
 
 const getCollection = async (name) => {

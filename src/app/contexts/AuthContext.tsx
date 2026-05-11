@@ -46,9 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response: any = await api.post('/users', newUser);
 
       if (response?.success && response.user) {
-        setUser(response.user);
-        localStorage.setItem('currentUser', JSON.stringify(response.user));
-        return true;
+        return await login(email, password, 'student');
       }
       return false;
     } catch (e) {
