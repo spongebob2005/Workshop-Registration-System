@@ -465,6 +465,17 @@ app.get("/api/events", async (_req, res) => {
   }
 });
 
+// Error handling
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit the process, just log the error
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process
+});
+
 app.listen(PORT, async () => {
   await connectDb();
   console.log(`MongoDB API server is running on http://localhost:${PORT}`);
