@@ -37,9 +37,16 @@ interface QuizAnswer {
 export const QuizPage = () => {
   const { workshopId, quizIndex } = useParams<{ workshopId: string; quizIndex: string }>();
   const navigate = useNavigate();
-  const { getWorkshopById } = useWorkshops();
-  const { user } = useAuth();
+  const { getWorkshopById, getBookingsByWorkshop } = useWorkshops();
+  const { user, isAuthenticated } = useAuth();
   const workshop = getWorkshopById(workshopId!);
+
+  // Check if user is registered for this workshop
+  const registeredUsers = workshop
+    ? getBookingsByWorkshop(workshop.id)
+        .filter((booking) => booking.status === 'confirmed')
+    : [];
+  const isUserRegistered = isAuthenticated && registeredUsers.some(u => u.userId === user?.id);
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
