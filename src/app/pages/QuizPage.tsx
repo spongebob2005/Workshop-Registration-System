@@ -208,6 +208,24 @@ export const QuizPage = () => {
     );
   }
 
+  if (!isUserRegistered) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="size-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Target className="size-10 text-gray-300" />
+          </div>
+          <h2 className="text-2xl mb-2 text-gray-700">Access Restricted</h2>
+          <p className="text-gray-500 mb-6">You need to register for this workshop to access the quiz.</p>
+          <div className="space-x-4">
+            <Button onClick={() => navigate(`/workshop/${workshopId}`)}>View Workshop</Button>
+            <Button variant="outline" onClick={() => navigate('/')}>Back to Home</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Results screen
   if (quizCompleted) {
     const score = calculateScore();
